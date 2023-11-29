@@ -6260,6 +6260,7 @@ CK_RV SoftHSM::WrapKeySym
 	// Get the symmetric algorithm matching the mechanism
 	SymAlgo::Type algo = SymAlgo::Unknown;
 	SymWrap::Type mode = SymWrap::Unknown;
+	SymMode::Type chainMode = SymMode::Unknown;
 	size_t bb = 8;
 	size_t blocksize = 0;
 	auto wrappedlen = keydata.size();
@@ -6280,27 +6281,71 @@ CK_RV SoftHSM::WrapKeySym
 			mode = SymWrap::AES_KEYWRAP_PAD;
 			break;
 #endif
+
+		case CKM_AES_ECB:
+			algo = SymAlgo::AES;
+			chainMode = SymMode::ECB;
+			break;
+
 		case CKM_AES_CBC:
 			algo = SymAlgo::AES;
+			chainMode = SymMode::CBC;
 			break;
 			
 		case CKM_AES_CBC_PAD:
 			blocksize = 16;
 			wrappedlen = RFC5652Pad(keydata, blocksize);
 			algo = SymAlgo::AES;
+			chainMode = SymMode::CBC;
 			break;
-			
+
+		case CKM_AES_GCM:
+			algo = SymAlgo::AES;
+			chainMode = SymMode::GCM;
+			break;
+
+		case CKM_DES3_ECB:
+			algo = SymAlgo::DES3;
+			chainMode = SymMode::ECB;
+			bb = 7;
+			break;
+
 		case CKM_DES3_CBC:
 			algo = SymAlgo::DES3;
+			chainMode = SymMode::CBC;
+			bb = 7;
 			break;
 			
 		case CKM_DES3_CBC_PAD:
 			blocksize = 8;
 			wrappedlen = RFC5652Pad(keydata, blocksize);
 			algo = SymAlgo::DES3;
+			chainMode = SymMode::CBC;
+			bb = 7;
+			break;
+
+		case CKM_DES_ECB:
+			algo = SymAlgo::DES;
+			chainMode = SymMode::ECB;
+			bb = 7;
+			break;
+
+		case CKM_DES_CBC:
+			algo = SymAlgo::DES;
+			chainMode = SymMode::CBC;
+			bb = 7;
+			break;
+
+		case CKM_DES_CBC_PAD:
+			blocksize = 8;
+			wrappedlen = RFC5652Pad(keydata, blocksize);
+			algo = SymAlgo::DES;
+			chainMode = SymMode::CBC;
+			bb = 7;
 			break;
 			
 		default:
+			WARNING_MSG("Unsupported mechanism %x", pMechanism->mechanism);
 			return CKR_MECHANISM_INVALID;
 	}
 	SymmetricAlgorithm* cipher = CryptoFactory::i()->getSymmetricAlgorithm(algo);
@@ -6320,45 +6365,73 @@ CK_RV SoftHSM::WrapKeySym
 
 	ByteString iv;
 	ByteString encryptedFinal;
+	size_t tagBytes = 0;
+    ByteString aad;
 
-	switch(pMechanism->mechanism) {
+	if (chainMode == SymMode::GCM) {
 
-		case CKM_AES_CBC:
-	        case CKM_AES_CBC_PAD:
-		case CKM_DES3_CBC:
-	        case CKM_DES3_CBC_PAD:
-			iv.resize(blocksize);
-			memcpy(&iv[0], pMechanism->pParameter, blocksize);
-			
-			if (!cipher->encryptInit(wrappingkey, SymMode::CBC, iv, false))
-			{
-				cipher->recycleKey(wrappingkey);
-				CryptoFactory::i()->recycleSymmetricAlgorithm(cipher);
-				return CKR_MECHANISM_INVALID;
-			}
-			if (!cipher->encryptUpdate(keydata, wrapped))
-			{
-				cipher->recycleKey(wrappingkey);
-				CryptoFactory::i()->recycleSymmetricAlgorithm(cipher);
-				return CKR_GENERAL_ERROR;
-			}
-			// Finalize encryption
-			if (!cipher->encryptFinal(encryptedFinal))
-			{
-				cipher->recycleKey(wrappingkey);
-				CryptoFactory::i()->recycleSymmetricAlgorithm(cipher);
-				return CKR_GENERAL_ERROR;
-			}
-			wrapped += encryptedFinal;
-			break;
-		default:
-			// Wrap the key
-			if (!cipher->wrapKey(wrappingkey, mode, keydata, wrapped))
-			{
-				cipher->recycleKey(wrappingkey);
-				CryptoFactory::i()->recycleSymmetricAlgorithm(cipher);
-				return CKR_GENERAL_ERROR;
-			}
+		iv.resize(CK_GCM_PARAMS_PTR(pMechanism->pParameter)->ulIvLen);
+		memcpy(&iv[0], CK_GCM_PARAMS_PTR(pMechanism->pParameter)->pIv, CK_GCM_PARAMS_PTR(pMechanism->pParameter)->ulIvLen);
+		aad.resize(CK_GCM_PARAMS_PTR(pMechanism->pParameter)->ulAADLen);
+		if (CK_GCM_PARAMS_PTR(pMechanism->pParameter)->ulAADLen > 0)
+			memcpy(&aad[0], CK_GCM_PARAMS_PTR(pMechanism->pParameter)->pAAD, CK_GCM_PARAMS_PTR(pMechanism->pParameter)->ulAADLen);
+
+		tagBytes = CK_GCM_PARAMS_PTR(pMechanism->pParameter)->ulTagBits;
+		if (tagBytes > 128 || tagBytes % 8 != 0)
+		{
+			DEBUG_MSG("Invalid ulTagBits value");
+			return CKR_ARGUMENTS_BAD;
+		}
+		tagBytes = tagBytes / 8;
+
+	} else if (chainMode == SymMode::CBC) {
+
+		iv.resize(blocksize);
+		memcpy(&iv[0], pMechanism->pParameter, blocksize);
+
+	}
+
+
+	if (chainMode != SymMode::Unknown) {
+		// Wrap the key using normal encryption
+
+		// adjust key bit length
+		wrappingkey->setBitLen(wrappingkey->getKeyBits().size() * bb);
+
+		if (!cipher->encryptInit(wrappingkey, chainMode, iv, false, 0, aad, tagBytes ))
+		{
+			cipher->recycleKey(wrappingkey);
+			CryptoFactory::i()->recycleSymmetricAlgorithm(cipher);
+			WARNING_MSG("Failed to initialize cipher");
+			return CKR_MECHANISM_INVALID;
+		}
+		if (!cipher->encryptUpdate(keydata, wrapped))
+		{
+			cipher->recycleKey(wrappingkey);
+			CryptoFactory::i()->recycleSymmetricAlgorithm(cipher);
+			return CKR_GENERAL_ERROR;
+		}
+		// Finalize encryption
+		if (!cipher->encryptFinal(encryptedFinal))
+		{
+			cipher->recycleKey(wrappingkey);
+			CryptoFactory::i()->recycleSymmetricAlgorithm(cipher);
+			return CKR_GENERAL_ERROR;
+		}
+		wrapped += encryptedFinal;
+
+	} else if (mode != SymWrap::Unknown) {
+		// Wrap the key using the specified mechanism
+
+		if (!cipher->wrapKey(wrappingkey, mode, keydata, wrapped))
+		{
+			cipher->recycleKey(wrappingkey);
+			CryptoFactory::i()->recycleSymmetricAlgorithm(cipher);
+			return CKR_GENERAL_ERROR;
+		}
+	} else {
+		ERROR_MSG("Unknown wrap/cipher mode");
+		return CKR_GENERAL_ERROR;
 	}
 
 	cipher->recycleKey(wrappingkey);
@@ -6497,12 +6570,42 @@ CK_RV SoftHSM::C_WrapKey
 				return rv;
 			break;
 		case CKM_AES_CBC:
-	        case CKM_AES_CBC_PAD:
+		case CKM_AES_CBC_PAD:
 			if (pMechanism->pParameter == NULL_PTR ||
-                            pMechanism->ulParameterLen != 16)
-                                return CKR_ARGUMENTS_BAD;
+			    pMechanism->ulParameterLen != 16)
+				return CKR_ARGUMENTS_BAD;
+			break;
+
+		case CKM_DES_CBC:
+		case CKM_DES_CBC_PAD:
+		case CKM_DES3_CBC:
+		case CKM_DES3_CBC_PAD:
+			if (pMechanism->pParameter == NULL_PTR ||
+			    pMechanism->ulParameterLen != 8)
+                        return CKR_ARGUMENTS_BAD;
                         break;
+
+		case CKM_AES_GCM:
+			if (pMechanism->pParameter == NULL_PTR ||
+			    pMechanism->ulParameterLen != sizeof(CK_GCM_PARAMS))
+			{
+				DEBUG_MSG("GCM mode requires parameters");
+				DEBUG_MSG("pParameter: %p", pMechanism->pParameter);
+				DEBUG_MSG("ulParameterLen: %lu != %lu", pMechanism->ulParameterLen, sizeof(CK_GCM_PARAMS));
+				return CKR_ARGUMENTS_BAD;
+			}
+			break;
+
+		case CKM_DES_ECB:
+		case CKM_DES3_ECB:
+		case CKM_AES_ECB:
+			if (pMechanism->pParameter != NULL_PTR ||
+			    pMechanism->ulParameterLen != 0)
+				return CKR_ARGUMENTS_BAD;
+			break;
+
 		default:
+			WARNING_MSG("Unsupported wrap mechanism: %x", pMechanism->mechanism);
 			return CKR_MECHANISM_INVALID;
 	}
 
@@ -6550,7 +6653,10 @@ CK_RV SoftHSM::C_WrapKey
 
 	// Check if the specified mechanism is allowed for the wrapping key
 	if (!isMechanismPermitted(wrapKey, pMechanism))
+	{
+		WARNING_MSG("Mechanism is not permitted");
 		return CKR_MECHANISM_INVALID;
+	}
 
 	// Check the to be wrapped key handle.
 	OSObject *key = (OSObject *)handleManager->getObject(hKey);
@@ -6741,9 +6847,11 @@ CK_RV SoftHSM::UnwrapKeySym
 	// Get the symmetric algorithm matching the mechanism
 	SymAlgo::Type algo = SymAlgo::Unknown;
 	SymWrap::Type mode = SymWrap::Unknown;
+	SymMode::Type chainMode = SymMode::Unknown;
 	size_t bb = 8;
 	size_t blocksize = 0;
-	
+	bool unpad = false;
+
 	switch(pMechanism->mechanism) {
 #ifdef HAVE_AES_KEY_WRAP
 		case CKM_AES_KEY_WRAP:
@@ -6757,17 +6865,71 @@ CK_RV SoftHSM::UnwrapKeySym
 			mode = SymWrap::AES_KEYWRAP_PAD;
 			break;
 #endif
-	        case CKM_AES_CBC_PAD:
+
+		case CKM_AES_ECB:
 			algo = SymAlgo::AES;
-			blocksize = 16;
+			chainMode = SymMode::ECB;
 			break;
-			
-	        case CKM_DES3_CBC_PAD:
+
+		case CKM_AES_CBC:
+			algo = SymAlgo::AES;
+			chainMode = SymMode::CBC;
+			break;
+
+		case CKM_AES_CBC_PAD:
+			blocksize = 16;
+			unpad = true;
+			algo = SymAlgo::AES;
+			chainMode = SymMode::CBC;
+			break;
+
+		case CKM_AES_GCM:
+			algo = SymAlgo::AES;
+			chainMode = SymMode::GCM;
+			break;
+
+		case CKM_DES3_ECB:
 			algo = SymAlgo::DES3;
+			chainMode = SymMode::ECB;
+			bb = 7;
+			break;
+
+		case CKM_DES3_CBC:
+			algo = SymAlgo::DES3;
+			chainMode = SymMode::CBC;
+			bb = 7;
+			break;
+
+		case CKM_DES3_CBC_PAD:
 			blocksize = 8;
-		        break;
-		  
+			unpad = true;
+			algo = SymAlgo::DES3;
+			chainMode = SymMode::CBC;
+			bb = 7;
+			break;
+
+		case CKM_DES_ECB:
+			algo = SymAlgo::DES;
+			chainMode = SymMode::ECB;
+			bb = 7;
+			break;
+
+		case CKM_DES_CBC:
+			algo = SymAlgo::DES;
+			chainMode = SymMode::CBC;
+			bb = 7;
+			break;
+
+		case CKM_DES_CBC_PAD:
+			blocksize = 8;
+			unpad = true;
+			algo = SymAlgo::DES;
+			chainMode = SymMode::CBC;
+			bb = 7;
+			break;
+
 		default:
+			WARNING_MSG("Unsupported mechanism %x", pMechanism->mechanism);
 			return CKR_MECHANISM_INVALID;
 	}
 
@@ -6789,18 +6951,44 @@ CK_RV SoftHSM::UnwrapKeySym
 	ByteString iv;
 	ByteString decryptedFinal;
 	CK_RV rv = CKR_OK;
-	
-	switch(pMechanism->mechanism) {
+	ByteString aad;
+	size_t tagBytes = 0;
 
-	case CKM_AES_CBC_PAD:
-	case CKM_DES3_CBC_PAD:
+	if (chainMode == SymMode::GCM)
+	{
+
+		iv.resize(CK_GCM_PARAMS_PTR(pMechanism->pParameter)->ulIvLen);
+		memcpy(&iv[0], CK_GCM_PARAMS_PTR(pMechanism->pParameter)->pIv, CK_GCM_PARAMS_PTR(pMechanism->pParameter)->ulIvLen);
+		aad.resize(CK_GCM_PARAMS_PTR(pMechanism->pParameter)->ulAADLen);
+		if (CK_GCM_PARAMS_PTR(pMechanism->pParameter)->ulAADLen > 0)
+			memcpy(&aad[0], CK_GCM_PARAMS_PTR(pMechanism->pParameter)->pAAD, CK_GCM_PARAMS_PTR(pMechanism->pParameter)->ulAADLen);
+
+		tagBytes = CK_GCM_PARAMS_PTR(pMechanism->pParameter)->ulTagBits;
+		if (tagBytes > 128 || tagBytes % 8 != 0)
+		{
+			DEBUG_MSG("Invalid ulTagBits value");
+			return CKR_ARGUMENTS_BAD;
+		}
+		tagBytes = tagBytes / 8;
+
+	} else if (chainMode == SymMode::CBC) {
+
 		iv.resize(blocksize);
 		memcpy(&iv[0], pMechanism->pParameter, blocksize);
-			
-		if (!cipher->decryptInit(unwrappingkey, SymMode::CBC, iv, false))
+
+	}
+
+	if (chainMode != SymMode::Unknown) {
+
+		// adjust key bit length
+		unwrappingkey->setBitLen(unwrappingkey->getKeyBits().size() * bb);
+
+		// Unwrap the key using normal decryption
+		if (!cipher->decryptInit(unwrappingkey, chainMode, iv, false, 0, aad, tagBytes ))
 		{
 			cipher->recycleKey(unwrappingkey);
 			CryptoFactory::i()->recycleSymmetricAlgorithm(cipher);
+			WARNING_MSG("Failed to initialize cipher");
 			return CKR_MECHANISM_INVALID;
 		}
 		if (!cipher->decryptUpdate(wrapped, keydata))
@@ -6809,7 +6997,7 @@ CK_RV SoftHSM::UnwrapKeySym
 			CryptoFactory::i()->recycleSymmetricAlgorithm(cipher);
 			return CKR_GENERAL_ERROR;
 		}
-		// Finalize encryption
+		// Finalize decryptio
 		if (!cipher->decryptFinal(decryptedFinal))
 		{
 			cipher->recycleKey(unwrappingkey);
@@ -6818,19 +7006,24 @@ CK_RV SoftHSM::UnwrapKeySym
 		}
 		keydata += decryptedFinal;
 
-		if(!RFC5652Unpad(keydata,blocksize))
-		{
-			cipher->recycleKey(unwrappingkey);
-			CryptoFactory::i()->recycleSymmetricAlgorithm(cipher);
-			return CKR_GENERAL_ERROR; // TODO should be another error
+		if (unpad) {
+			// RFC 5652 section 6.3
+			if (!RFC5652Unpad(keydata, blocksize))
+			{
+				cipher->recycleKey(unwrappingkey);
+				CryptoFactory::i()->recycleSymmetricAlgorithm(cipher);
+				return CKR_GENERAL_ERROR;
+			}
 		}
-		break;
-		
-	default:
+
+	} else if (mode != SymWrap::Unknown) {
 		// Unwrap the key
 		rv = CKR_OK;
 		if (!cipher->unwrapKey(unwrappingkey, mode, wrapped, keydata))
 			rv = CKR_GENERAL_ERROR;
+	} else {
+		ERROR_MSG("Unknown wrap/cipher mode");
+		return CKR_GENERAL_ERROR;
 	}
 
 	cipher->recycleKey(unwrappingkey);
@@ -6956,21 +7149,45 @@ CK_RV SoftHSM::C_UnwrapKey
 				return rv;
 			break;
 
-	        case CKM_AES_CBC_PAD:
+		case CKM_AES_CBC:
+		case CKM_AES_CBC_PAD:
 			// TODO check block length
 			if (pMechanism->pParameter == NULL_PTR ||
-                            pMechanism->ulParameterLen != 16)
+                pMechanism->ulParameterLen != 16)
 				return CKR_ARGUMENTS_BAD;
 			break;
 
-	        case CKM_DES3_CBC_PAD:
+		case CKM_DES_CBC:
+		case CKM_DES_CBC_PAD:
+		case CKM_DES3_CBC:
+		case CKM_DES3_CBC_PAD:
 			// TODO check block length
 			if (pMechanism->pParameter == NULL_PTR ||
-                            pMechanism->ulParameterLen != 8)
+                pMechanism->ulParameterLen != 8)
 				return CKR_ARGUMENTS_BAD;
 			break;
-			
+
+		case CKM_AES_GCM:
+			if (pMechanism->pParameter == NULL_PTR ||
+				pMechanism->ulParameterLen != sizeof(CK_GCM_PARAMS))
+			{
+				DEBUG_MSG("GCM mode requires parameters");
+				DEBUG_MSG("pParameter: %p", pMechanism->pParameter);
+				DEBUG_MSG("ulParameterLen: %lu != %lu", pMechanism->ulParameterLen, sizeof(CK_GCM_PARAMS));
+				return CKR_ARGUMENTS_BAD;
+			}
+			break;
+
+		case CKM_DES_ECB:
+		case CKM_DES3_ECB:
+		case CKM_AES_ECB:
+			if (pMechanism->pParameter != NULL_PTR ||
+				pMechanism->ulParameterLen != 0)
+				return CKR_ARGUMENTS_BAD;
+			break;
+
 		default:
+			WARNING_MSG("Unsupported unwrap mechanism: %x", pMechanism->mechanism);
 			return CKR_MECHANISM_INVALID;
 	}
 
