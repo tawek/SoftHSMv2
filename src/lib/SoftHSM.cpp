@@ -7378,6 +7378,12 @@ CK_RV SoftHSM::C_UnwrapKey
 				else
 					value = keydata;
 				bOK = bOK && osobject->setAttribute(CKA_VALUE, value);
+
+				// if the key type supports it, set the CKA_VALUE_LEN to actual length of the key
+				if (keyType == CKK_GENERIC_SECRET || keyType == CKK_AES)
+				{
+					bOK = bOK && osobject->setAttribute(CKA_VALUE_LEN, keydata.size());
+				}
 			}
 			else if (keyType == CKK_RSA)
 			{
