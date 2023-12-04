@@ -1127,7 +1127,6 @@ CK_RV SoftHSM::C_GetMechanismInfo(CK_SLOT_ID slotID, CK_MECHANISM_TYPE type, CK_
 			/* FALLTHROUGH */
 #endif
 		case CKM_DES3_CBC_PAD:
-			pInfo->flags = CKF_WRAP | CKF_UNWRAP;
 			/* FALLTHROUGH */
 #ifndef WITH_FIPS
 		case CKM_DES_ECB:
@@ -1136,13 +1135,11 @@ CK_RV SoftHSM::C_GetMechanismInfo(CK_SLOT_ID slotID, CK_MECHANISM_TYPE type, CK_
 			/* FALLTHROUGH */
 #endif
 		case CKM_DES3_CBC:
-			pInfo->flags |= CKF_WRAP;
-			/* FALLTHROUGH */
 		case CKM_DES3_ECB:
 			// Key size is not in use
 			pInfo->ulMinKeySize = 0;
 			pInfo->ulMaxKeySize = 0;
-			pInfo->flags |= CKF_ENCRYPT | CKF_DECRYPT;
+			pInfo->flags |= CKF_ENCRYPT | CKF_DECRYPT | CKF_WRAP | CKF_UNWRAP;
 			break;
 		case CKM_DES3_CMAC:
 			// Key size is not in use
@@ -1156,13 +1153,11 @@ CK_RV SoftHSM::C_GetMechanismInfo(CK_SLOT_ID slotID, CK_MECHANISM_TYPE type, CK_
 			pInfo->flags = CKF_GENERATE;
 			break;
 		case CKM_AES_CBC_PAD:
-			pInfo->flags = CKF_UNWRAP | CKF_WRAP;
-			/* FALLTHROUGH */
 		case CKM_AES_CBC:
-			pInfo->flags |= CKF_WRAP;
 		case CKM_AES_ECB:
-		case CKM_AES_CTR:
 		case CKM_AES_GCM:
+			pInfo->flags |= CKF_UNWRAP | CKF_WRAP;
+		case CKM_AES_CTR:
 			pInfo->ulMinKeySize = 16;
 			pInfo->ulMaxKeySize = 32;
 			pInfo->flags |= CKF_ENCRYPT | CKF_DECRYPT;
