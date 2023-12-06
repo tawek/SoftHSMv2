@@ -823,6 +823,11 @@ void SoftHSM::prepareSupportedMecahnisms(std::map<std::string, CK_MECHANISM_TYPE
 	t["CKM_CONCATENATE_BASE_AND_DATA"] = CKM_CONCATENATE_BASE_AND_DATA;
 	t["CKM_CONCATENATE_BASE_AND_KEY"] = CKM_CONCATENATE_BASE_AND_KEY;
 	t["CKM_XOR_BASE_AND_DATA"]	= CKM_XOR_BASE_AND_DATA;
+	t["CKM_SHA1_KEY_DERIVATION"] = CKM_SHA1_KEY_DERIVATION;
+	t["CKM_SHA224_KEY_DERIVATION"] = CKM_SHA224_KEY_DERIVATION;
+	t["CKM_SHA256_KEY_DERIVATION"] = CKM_SHA256_KEY_DERIVATION;
+	t["CKM_SHA384_KEY_DERIVATION"] = CKM_SHA384_KEY_DERIVATION;
+	t["CKM_SHA512_KEY_DERIVATION"] = CKM_SHA512_KEY_DERIVATION;
 
 	supportedMechanisms.clear();
 	for (auto it = t.begin(); it != t.end(); ++it)
@@ -1300,6 +1305,15 @@ CK_RV SoftHSM::C_GetMechanismInfo(CK_SLOT_ID slotID, CK_MECHANISM_TYPE type, CK_
 	        pInfo->ulMaxKeySize = 512;
 	        pInfo->flags = CKF_DERIVE;
 	        break;
+		case CKM_SHA1_KEY_DERIVATION:
+		case CKM_SHA224_KEY_DERIVATION:
+		case CKM_SHA256_KEY_DERIVATION:
+		case CKM_SHA384_KEY_DERIVATION:
+		case CKM_SHA512_KEY_DERIVATION:
+			pInfo->ulMinKeySize = 1;
+			pInfo->ulMaxKeySize = 512/8;
+			pInfo->flags = CKF_DERIVE;
+			break;
 		default:
 			DEBUG_MSG("The selected mechanism is not supported");
 			return CKR_MECHANISM_INVALID;
@@ -7448,6 +7462,14 @@ CK_RV SoftHSM::C_UnwrapKey
 	return rv;
 }
 
+bool isSHADerivation(CK_MECHANISM_PTR pMechanism) {
+	return pMechanism->mechanism == CKM_SHA1_KEY_DERIVATION ||
+	       pMechanism->mechanism == CKM_SHA256_KEY_DERIVATION ||
+	       pMechanism->mechanism == CKM_SHA384_KEY_DERIVATION ||
+	       pMechanism->mechanism == CKM_SHA512_KEY_DERIVATION ||
+	       pMechanism->mechanism == CKM_SHA224_KEY_DERIVATION;
+}
+
 // Derive a key from the specified base key
 CK_RV SoftHSM::C_DeriveKey
 (
@@ -7488,6 +7510,11 @@ CK_RV SoftHSM::C_DeriveKey
 		case CKM_CONCATENATE_BASE_AND_DATA:
 		case CKM_CONCATENATE_BASE_AND_KEY:
 		case CKM_XOR_BASE_AND_DATA:
+		case CKM_SHA1_KEY_DERIVATION:
+		case CKM_SHA256_KEY_DERIVATION:
+		case CKM_SHA384_KEY_DERIVATION:
+		case CKM_SHA512_KEY_DERIVATION:
+		case CKM_SHA224_KEY_DERIVATION:
 			break;
 
 		default:
@@ -7530,10 +7557,11 @@ CK_RV SoftHSM::C_DeriveKey
 	CK_BBOOL isOnToken = CK_FALSE;
 	CK_BBOOL isPrivate = CK_TRUE;
 	CK_CERTIFICATE_TYPE dummy;
-    bool isImplicit = pMechanism->mechanism == CKM_CONCATENATE_DATA_AND_BASE ||
-			pMechanism->mechanism == CKM_CONCATENATE_BASE_AND_DATA ||
-			pMechanism->mechanism == CKM_CONCATENATE_BASE_AND_KEY ||
-			pMechanism->mechanism == CKM_XOR_BASE_AND_DATA;
+	bool isImplicit = pMechanism->mechanism == CKM_CONCATENATE_DATA_AND_BASE ||
+	                  pMechanism->mechanism == CKM_CONCATENATE_BASE_AND_DATA ||
+	                  pMechanism->mechanism == CKM_CONCATENATE_BASE_AND_KEY ||
+	                  pMechanism->mechanism == CKM_XOR_BASE_AND_DATA ||
+	                  isSHADerivation(pMechanism);
     if (isImplicit) {
         // PKCS#11 2.40 section 2.31.5: if no key type is provided then the key produced by this mechanism will
         // be a generic secret key
@@ -7610,7 +7638,8 @@ CK_RV SoftHSM::C_DeriveKey
 	    pMechanism->mechanism == CKM_CONCATENATE_DATA_AND_BASE ||
 	    pMechanism->mechanism == CKM_CONCATENATE_BASE_AND_DATA ||
 	    pMechanism->mechanism == CKM_CONCATENATE_BASE_AND_KEY ||
-	    pMechanism->mechanism == CKM_XOR_BASE_AND_DATA)
+	    pMechanism->mechanism == CKM_XOR_BASE_AND_DATA ||
+	    isSHADerivation(pMechanism))
 	{
 		// Check key class and type
 		CK_KEY_TYPE baseKeyType = key->getUnsignedLongValue(CKA_KEY_TYPE, CKK_VENDOR_DEFINED);
@@ -11540,7 +11569,7 @@ CK_RV SoftHSM::deriveSymmetric
 	CK_OBJECT_HANDLE_PTR phOtherKey = CK_INVALID_HANDLE;
 	OSObject *otherKey = NULL_PTR;
 
-	if (pMechanism->pParameter == NULL_PTR)
+	if (pMechanism->pParameter == NULL_PTR && !isSHADerivation(pMechanism))
 	{
 		DEBUG_MSG("pParameter must be supplied");
 		return CKR_MECHANISM_PARAM_INVALID;
@@ -11653,10 +11682,17 @@ CK_RV SoftHSM::deriveSymmetric
 		phOtherKey = CK_OBJECT_HANDLE_PTR(pMechanism->pParameter);
 		if (phOtherKey == CK_INVALID_HANDLE)
 		{
-			DEBUG_MSG("There must be handle in the parameter");
+			WARNING_MSG("There must be handle in the parameter");
 			return CKR_MECHANISM_PARAM_INVALID;
 		}
 		DEBUG_MSG("(0x%08X) Other key handle is (0x%08X)", phOtherKey, *phOtherKey);
+	}
+	else if (isSHADerivation(pMechanism)) {
+		// no parameter
+		if (pMechanism->ulParameterLen != 0) {
+			WARNING_MSG("No parameter was expected")
+			return CKR_MECHANISM_PARAM_INVALID;
+		}
 	}
 	else
 	{
@@ -11813,11 +11849,16 @@ CK_RV SoftHSM::deriveSymmetric
 			       &(CK_AES_CBC_ENCRYPT_DATA_PARAMS_PTR(pMechanism->pParameter)->iv[0]),
 			       16);
 			break;
-	    case CKM_CONCATENATE_DATA_AND_BASE:
-	    case CKM_CONCATENATE_BASE_AND_DATA:
-	    case CKM_CONCATENATE_BASE_AND_KEY:
+		case CKM_CONCATENATE_DATA_AND_BASE:
+		case CKM_CONCATENATE_BASE_AND_DATA:
+		case CKM_CONCATENATE_BASE_AND_KEY:
 		case CKM_XOR_BASE_AND_DATA:
-	        break;
+		case CKM_SHA1_KEY_DERIVATION:
+		case CKM_SHA256_KEY_DERIVATION:
+		case CKM_SHA384_KEY_DERIVATION:
+		case CKM_SHA512_KEY_DERIVATION:
+		case CKM_SHA224_KEY_DERIVATION:
+			break;
 		default:
 			return CKR_MECHANISM_INVALID;
 	}
@@ -11832,7 +11873,8 @@ CK_RV SoftHSM::deriveSymmetric
     if (pMechanism->mechanism == CKM_CONCATENATE_DATA_AND_BASE ||
 			pMechanism->mechanism == CKM_CONCATENATE_BASE_AND_DATA ||
 			pMechanism->mechanism == CKM_CONCATENATE_BASE_AND_KEY ||
-			pMechanism->mechanism == CKM_XOR_BASE_AND_DATA) {
+			pMechanism->mechanism == CKM_XOR_BASE_AND_DATA ||
+			isSHADerivation(pMechanism)) {
         // Get the key data
         ByteString keydata;
 
@@ -11855,28 +11897,62 @@ CK_RV SoftHSM::deriveSymmetric
 				pMechanism->mechanism == CKM_CONCATENATE_BASE_AND_KEY) {
 			secretValue += keydata;
 			secretValue += data;
-        } else if (pMechanism->mechanism == CKM_XOR_BASE_AND_DATA) {
-	        // take every byte of data and keydata and xor them
-	        // key and xor data must be of same length
-	        if (data.size() != keydata.size()) {
-		        WARNING_MSG("XOR data and key must be of same length, data length: %lu, key length: %lu", data.size(),
-		                    keydata.size());
-		        return CKR_MECHANISM_PARAM_INVALID;
-	        }
-	        for (size_t i = 0; i < data.size(); i++) {
-		        secretValue += (data[i] ^ keydata[i]);
-	        }
+		} else if (pMechanism->mechanism == CKM_XOR_BASE_AND_DATA) {
+			// take every byte of data and keydata and xor them
+			// key and xor data must be of same length
+			if (data.size() != keydata.size()) {
+				WARNING_MSG("XOR data and key must be of same length, data length: %lu, key length: %lu", data.size(),
+							keydata.size());
+				return CKR_MECHANISM_PARAM_INVALID;
+			}
+			for (size_t i = 0; i < data.size(); i++) {
+				secretValue += (data[i] ^ keydata[i]);
+			}
+		} else if (isSHADerivation(pMechanism)) {
+			// find the hashing algo
+			HashAlgorithm* hashAlgo;
+			switch (pMechanism->mechanism) {
+				case CKM_SHA1_KEY_DERIVATION:
+					hashAlgo = CryptoFactory::i()->getHashAlgorithm(HashAlgo::SHA1);
+					break;
+				case CKM_SHA256_KEY_DERIVATION:
+					hashAlgo = CryptoFactory::i()->getHashAlgorithm(HashAlgo::SHA256);
+					break;
+				case CKM_SHA384_KEY_DERIVATION:
+					hashAlgo = CryptoFactory::i()->getHashAlgorithm(HashAlgo::SHA384);
+					break;
+				case CKM_SHA512_KEY_DERIVATION:
+					hashAlgo = CryptoFactory::i()->getHashAlgorithm(HashAlgo::SHA512);
+					break;
+				case CKM_SHA224_KEY_DERIVATION:
+					hashAlgo = CryptoFactory::i()->getHashAlgorithm(HashAlgo::SHA224);
+					break;
+				default:
+					WARNING_MSG("Invalid hash mechanism");
+					return CKR_MECHANISM_INVALID;
+			}
+			// perform hashing
+			ByteString hash;
+			bool hashOk = hashAlgo->hashDigest(keydata, hash);
+			CryptoFactory::i()->recycleHashAlgorithm(hashAlgo);
+			if (!hashOk) {
+				WARNING_MSG("Hash failed.")
+				return CKR_GENERAL_ERROR;
+			}
+
+			// if key length is specified trim the secret value to the byteLen left-most bytes
+			if (byteLen > 0) {
+				secretValue += hash.substr(0, byteLen);
+			} else {
+				secretValue += hash;
+			}
         } else {
         	return CKR_MECHANISM_INVALID;
         }
 
         // If the CKA_VALUE_LEN attribute is not present use computed size
         if (byteLen == 0) {
-	        if (pMechanism->mechanism == CKM_XOR_BASE_AND_DATA) {
-		        byteLen = keydata.size();
-	        } else {
-		        byteLen = data.size() + keydata.size();
-	        }
+            byteLen = secretValue.size();
             CK_RV rv = checkKeyLength(keyType, byteLen);
             if (rv != CKR_OK) {
             	return rv;

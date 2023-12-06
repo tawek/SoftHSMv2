@@ -66,6 +66,9 @@ public:
 	virtual bool hashFinal(ByteString& hashedData);
 
 	virtual int getHashSize() = 0;
+
+	// simplified digest function
+	virtual bool hashDigest(const ByteString& data, ByteString& hashedData);
 protected:
 	// The current operation
 	enum

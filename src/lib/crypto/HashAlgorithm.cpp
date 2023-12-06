@@ -74,3 +74,24 @@ bool HashAlgorithm::hashFinal(ByteString& /*hashedData*/)
 	return true;
 }
 
+// simplified digest function
+bool HashAlgorithm::hashDigest(const ByteString& data, ByteString& hashedData)
+{
+	if (!hashInit())
+	{
+		return false;
+	}
+
+	if (!hashUpdate(data))
+	{
+		return false;
+	}
+
+	if (!hashFinal(hashedData))
+	{
+		return false;
+	}
+
+	return true;
+}
+
