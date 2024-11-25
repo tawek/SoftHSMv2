@@ -383,6 +383,8 @@ CK_RV P11Attribute::update(Token* token, bool isPrivate, CK_VOID_PTR pValue, CK_
 		return CKR_GENERAL_ERROR;
 	}
 
+	DEBUG_MSG("Updating attribute %lu", type);
+
 	// [PKCS#11 v2.40, 4.1.1 Creating objects]
 	//    2. If the supplied template specifies an invalid value for a valid attribute, then the
 	//    attempt should fail with the error code CKR_ATTRIBUTE_VALUE_INVALID.
@@ -946,6 +948,7 @@ CK_RV P11AttrValue::updateAttr(Token *token, bool isPrivate, CK_VOID_PTR pValue,
 	ByteString plaintext((unsigned char*)pValue, ulValueLen);
 	ByteString value;
 
+	DEBUG_MSG("Updating CKA_VALUE");
 	// Encrypt
 
 	if (isPrivate)
@@ -972,6 +975,7 @@ CK_RV P11AttrValue::updateAttr(Token *token, bool isPrivate, CK_VOID_PTR pValue,
 		// Set the CKA_VALUE_LEN
 		if (osobject->attributeExists(CKA_VALUE_LEN))
 		{
+			DEBUG_MSG("Setting CKA_VALUE_LEN to %lu", (unsigned long)plaintext.size());
 			OSAttribute bytes((unsigned long)plaintext.size());
 			osobject->setAttribute(CKA_VALUE_LEN, bytes);
 		}
@@ -979,9 +983,12 @@ CK_RV P11AttrValue::updateAttr(Token *token, bool isPrivate, CK_VOID_PTR pValue,
 		// Set the CKA_VALUE_BITS
 		if (osobject->attributeExists(CKA_VALUE_BITS))
 		{
+			DEBUG_MSG("Setting CKA_VALUE_BITS to %lu", (unsigned long)plaintext.bits());
 			OSAttribute bits((unsigned long)plaintext.bits());
 			osobject->setAttribute(CKA_VALUE_BITS, bits);
 		}
+	} else {
+		DEBUG_MSG("Not setting CKA_VALUE_LEN or CKA_VALUE_BITS");
 	}
 
 	// Calculate the CKA_CHECK_VALUE for certificates

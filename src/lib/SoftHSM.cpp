@@ -6644,21 +6644,22 @@ CK_RV SoftHSM::C_WrapKey
 	}
 
 	// Check wrapping key class and type
-	if ((pMechanism->mechanism == CKM_AES_KEY_WRAP || pMechanism->mechanism == CKM_AES_KEY_WRAP_PAD) && wrapKey->getUnsignedLongValue(CKA_CLASS, CKO_VENDOR_DEFINED) != CKO_SECRET_KEY)
-		return CKR_WRAPPING_KEY_TYPE_INCONSISTENT;
-	if ((pMechanism->mechanism == CKM_RSA_PKCS || pMechanism->mechanism == CKM_RSA_PKCS_OAEP) && wrapKey->getUnsignedLongValue(CKA_CLASS, CKO_VENDOR_DEFINED) != CKO_PUBLIC_KEY)
-		return CKR_WRAPPING_KEY_TYPE_INCONSISTENT;
-	if (pMechanism->mechanism == CKM_AES_KEY_WRAP && wrapKey->getUnsignedLongValue(CKA_KEY_TYPE, CKK_VENDOR_DEFINED) != CKK_AES)
-		return CKR_WRAPPING_KEY_TYPE_INCONSISTENT;
-	if (pMechanism->mechanism == CKM_AES_KEY_WRAP_PAD && wrapKey->getUnsignedLongValue(CKA_KEY_TYPE, CKK_VENDOR_DEFINED) != CKK_AES)
-		return CKR_WRAPPING_KEY_TYPE_INCONSISTENT;
-	if ((pMechanism->mechanism == CKM_RSA_PKCS || pMechanism->mechanism == CKM_RSA_PKCS_OAEP) && wrapKey->getUnsignedLongValue(CKA_KEY_TYPE, CKK_VENDOR_DEFINED) != CKK_RSA)
-		return CKR_WRAPPING_KEY_TYPE_INCONSISTENT;
-	if ((pMechanism->mechanism == CKM_AES_CBC || pMechanism->mechanism == CKM_AES_CBC_PAD) && wrapKey->getUnsignedLongValue(CKA_KEY_TYPE, CKK_VENDOR_DEFINED) != CKK_AES)
-		return CKR_WRAPPING_KEY_TYPE_INCONSISTENT;
-	if (pMechanism->mechanism == CKM_DES3_CBC && (wrapKey->getUnsignedLongValue(CKA_KEY_TYPE, CKK_VENDOR_DEFINED) != CKK_DES2 ||
-		wrapKey->getUnsignedLongValue(CKA_KEY_TYPE, CKK_VENDOR_DEFINED) != CKK_DES3))
-		return CKR_WRAPPING_KEY_TYPE_INCONSISTENT;
+// disable checks
+//	if ((pMechanism->mechanism == CKM_AES_KEY_WRAP || pMechanism->mechanism == CKM_AES_KEY_WRAP_PAD) && wrapKey->getUnsignedLongValue(CKA_CLASS, CKO_VENDOR_DEFINED) != CKO_SECRET_KEY)
+//		return CKR_WRAPPING_KEY_TYPE_INCONSISTENT;
+//	if ((pMechanism->mechanism == CKM_RSA_PKCS || pMechanism->mechanism == CKM_RSA_PKCS_OAEP) && wrapKey->getUnsignedLongValue(CKA_CLASS, CKO_VENDOR_DEFINED) != CKO_PUBLIC_KEY)
+//		return CKR_WRAPPING_KEY_TYPE_INCONSISTENT;
+//	if (pMechanism->mechanism == CKM_AES_KEY_WRAP && wrapKey->getUnsignedLongValue(CKA_KEY_TYPE, CKK_VENDOR_DEFINED) != CKK_AES)
+//		return CKR_WRAPPING_KEY_TYPE_INCONSISTENT;
+//	if (pMechanism->mechanism == CKM_AES_KEY_WRAP_PAD && wrapKey->getUnsignedLongValue(CKA_KEY_TYPE, CKK_VENDOR_DEFINED) != CKK_AES)
+//		return CKR_WRAPPING_KEY_TYPE_INCONSISTENT;
+//	if ((pMechanism->mechanism == CKM_RSA_PKCS || pMechanism->mechanism == CKM_RSA_PKCS_OAEP) && wrapKey->getUnsignedLongValue(CKA_KEY_TYPE, CKK_VENDOR_DEFINED) != CKK_RSA)
+//		return CKR_WRAPPING_KEY_TYPE_INCONSISTENT;
+//	if ((pMechanism->mechanism == CKM_AES_CBC || pMechanism->mechanism == CKM_AES_CBC_PAD) && wrapKey->getUnsignedLongValue(CKA_KEY_TYPE, CKK_VENDOR_DEFINED) != CKK_AES)
+//		return CKR_WRAPPING_KEY_TYPE_INCONSISTENT;
+//	if (pMechanism->mechanism == CKM_DES3_CBC && (wrapKey->getUnsignedLongValue(CKA_KEY_TYPE, CKK_VENDOR_DEFINED) != CKK_DES2 ||
+//		wrapKey->getUnsignedLongValue(CKA_KEY_TYPE, CKK_VENDOR_DEFINED) != CKK_DES3))
+//		return CKR_WRAPPING_KEY_TYPE_INCONSISTENT;
 
 	// Check if the wrapping key can be used for wrapping
 	if (wrapKey->getBooleanValue(CKA_WRAP, false) == false)
@@ -6995,9 +6996,6 @@ CK_RV SoftHSM::UnwrapKeySym
 
 	if (chainMode != SymMode::Unknown) {
 
-		// adjust key bit length
-		unwrappingkey->setBitLen(unwrappingkey->getKeyBits().size() * bb);
-
 		// Unwrap the key using normal decryption
 		if (!cipher->decryptInit(unwrappingkey, chainMode, iv, false, 0, aad, tagBytes ))
 		{
@@ -7228,29 +7226,33 @@ CK_RV SoftHSM::C_UnwrapKey
 	}
 
 	// Check unwrapping key class and type
-	if ((pMechanism->mechanism == CKM_AES_KEY_WRAP || pMechanism->mechanism == CKM_AES_KEY_WRAP_PAD) && unwrapKey->getUnsignedLongValue(CKA_CLASS, CKO_VENDOR_DEFINED) != CKO_SECRET_KEY)
-		return CKR_UNWRAPPING_KEY_TYPE_INCONSISTENT;
-	if (pMechanism->mechanism == CKM_AES_KEY_WRAP && unwrapKey->getUnsignedLongValue(CKA_KEY_TYPE, CKK_VENDOR_DEFINED) != CKK_AES)
-		return CKR_UNWRAPPING_KEY_TYPE_INCONSISTENT;
-	if (pMechanism->mechanism == CKM_AES_KEY_WRAP_PAD && unwrapKey->getUnsignedLongValue(CKA_KEY_TYPE, CKK_VENDOR_DEFINED) != CKK_AES)
-		return CKR_UNWRAPPING_KEY_TYPE_INCONSISTENT;
-	if ((pMechanism->mechanism == CKM_RSA_PKCS || pMechanism->mechanism == CKM_RSA_PKCS_OAEP) && unwrapKey->getUnsignedLongValue(CKA_CLASS, CKO_VENDOR_DEFINED) != CKO_PRIVATE_KEY)
-		return CKR_UNWRAPPING_KEY_TYPE_INCONSISTENT;
-	if ((pMechanism->mechanism == CKM_RSA_PKCS || pMechanism->mechanism == CKM_RSA_PKCS_OAEP) && unwrapKey->getUnsignedLongValue(CKA_KEY_TYPE, CKK_VENDOR_DEFINED) != CKK_RSA)
-		return CKR_UNWRAPPING_KEY_TYPE_INCONSISTENT;
-	if ((pMechanism->mechanism == CKM_AES_CBC || pMechanism->mechanism == CKM_AES_CBC_PAD) && unwrapKey->getUnsignedLongValue(CKA_KEY_TYPE, CKK_VENDOR_DEFINED) != CKK_AES)
-		return CKR_WRAPPING_KEY_TYPE_INCONSISTENT;
-	if (pMechanism->mechanism == CKM_DES3_CBC && (unwrapKey->getUnsignedLongValue(CKA_KEY_TYPE, CKK_VENDOR_DEFINED) != CKK_DES2 ||
-		unwrapKey->getUnsignedLongValue(CKA_KEY_TYPE, CKK_VENDOR_DEFINED) != CKK_DES3))
-		return CKR_WRAPPING_KEY_TYPE_INCONSISTENT;
-	
+// disable checks
+//	if ((pMechanism->mechanism == CKM_AES_KEY_WRAP || pMechanism->mechanism == CKM_AES_KEY_WRAP_PAD) && unwrapKey->getUnsignedLongValue(CKA_CLASS, CKO_VENDOR_DEFINED) != CKO_SECRET_KEY)
+//		return CKR_UNWRAPPING_KEY_TYPE_INCONSISTENT;
+//	if (pMechanism->mechanism == CKM_AES_KEY_WRAP && unwrapKey->getUnsignedLongValue(CKA_KEY_TYPE, CKK_VENDOR_DEFINED) != CKK_AES)
+//		return CKR_UNWRAPPING_KEY_TYPE_INCONSISTENT;
+//	if (pMechanism->mechanism == CKM_AES_KEY_WRAP_PAD && unwrapKey->getUnsignedLongValue(CKA_KEY_TYPE, CKK_VENDOR_DEFINED) != CKK_AES)
+//		return CKR_UNWRAPPING_KEY_TYPE_INCONSISTENT;
+//	if ((pMechanism->mechanism == CKM_RSA_PKCS || pMechanism->mechanism == CKM_RSA_PKCS_OAEP) && unwrapKey->getUnsignedLongValue(CKA_CLASS, CKO_VENDOR_DEFINED) != CKO_PRIVATE_KEY)
+//		return CKR_UNWRAPPING_KEY_TYPE_INCONSISTENT;
+//	if ((pMechanism->mechanism == CKM_RSA_PKCS || pMechanism->mechanism == CKM_RSA_PKCS_OAEP) && unwrapKey->getUnsignedLongValue(CKA_KEY_TYPE, CKK_VENDOR_DEFINED) != CKK_RSA)
+//		return CKR_UNWRAPPING_KEY_TYPE_INCONSISTENT;
+//	if ((pMechanism->mechanism == CKM_AES_CBC || pMechanism->mechanism == CKM_AES_CBC_PAD) && unwrapKey->getUnsignedLongValue(CKA_KEY_TYPE, CKK_VENDOR_DEFINED) != CKK_AES)
+//		return CKR_WRAPPING_KEY_TYPE_INCONSISTENT;
+//	if (pMechanism->mechanism == CKM_DES3_CBC && (unwrapKey->getUnsignedLongValue(CKA_KEY_TYPE, CKK_VENDOR_DEFINED) != CKK_DES2 ||
+//		unwrapKey->getUnsignedLongValue(CKA_KEY_TYPE, CKK_VENDOR_DEFINED) != CKK_DES3))
+//		return CKR_WRAPPING_KEY_TYPE_INCONSISTENT;
+
 	// Check if the unwrapping key can be used for unwrapping
 	if (unwrapKey->getBooleanValue(CKA_UNWRAP, false) == false)
 		return CKR_KEY_FUNCTION_NOT_PERMITTED;
 
 	// Check if the specified mechanism is allowed for the unwrap key
 	if (!isMechanismPermitted(unwrapKey, pMechanism))
+	{
+		WARNING_MSG("Mechanism is not permitted");
 		return CKR_MECHANISM_INVALID;
+	}
 
 	// Extract information from the template that is needed to create the object.
 	CK_OBJECT_CLASS objClass;
@@ -7366,6 +7368,12 @@ CK_RV SoftHSM::C_UnwrapKey
 		rv = CKR_UNWRAPPING_KEY_TYPE_INCONSISTENT;
 	if (rv != CKR_OK)
 		return rv;
+
+	rv = checkKeyLength(keyType, keydata.size());
+	if (rv != CKR_OK) {
+        WARNING_MSG("Key length check failed %lu bytes, key type %lu", keydata.size(), keyType);
+		return rv;
+	}
 
 	// Create the secret object using C_CreateObject
 	rv = this->CreateObject(hSession, secretAttribs, secretAttribsCount, hKey, OBJECT_OP_UNWRAP);
@@ -7548,12 +7556,18 @@ CK_RV SoftHSM::C_DeriveKey
 	}
 
 	// Check if key can be used for derive
-	if (!key->getBooleanValue(CKA_DERIVE, false))
+	if (!key->getBooleanValue(CKA_DERIVE, false)) {
+		WARNING_MSG("Key can not be used for derive");
 		return CKR_KEY_FUNCTION_NOT_PERMITTED;
+	}
 
 	// Check if the specified mechanism is allowed for the key
-	if (!isMechanismPermitted(key, pMechanism))
+	if (!isMechanismPermitted(key, pMechanism)) {
+		WARNING_MSG("Mechanism is not permitted");
 		return CKR_MECHANISM_INVALID;
+	} else {
+		DEBUG_MSG("Mechanism is permitted");
+	}
 
 	// Extract information from the template that is needed to create the object.
 	CK_OBJECT_CLASS objClass;
@@ -7576,6 +7590,8 @@ CK_RV SoftHSM::C_DeriveKey
     if (rv != CKR_OK) {
         ERROR_MSG("Mandatory attribute not present in template");
         return rv;
+    } else {
+	    DEBUG_MSG("Extracted object information");
     }
 
 	// Report errors and/or unexpected usage.
@@ -7598,17 +7614,22 @@ CK_RV SoftHSM::C_DeriveKey
 			INFO_MSG("Session is read-only");
 
 		return rv;
+	} else {
+		DEBUG_MSG("User is authorized to derive key, onToken=%d, isPrivate=%d", isOnToken, isPrivate);
 	}
 
 	// Derive DH secret
 	if (pMechanism->mechanism == CKM_DH_PKCS_DERIVE)
 	{
+		DEBUG_MSG("Checking key class")
 		// Check key class and type
 		if (key->getUnsignedLongValue(CKA_CLASS, CKO_VENDOR_DEFINED) != CKO_PRIVATE_KEY)
 			return CKR_KEY_TYPE_INCONSISTENT;
+		DEBUG_MSG("Checking key type")
 		if (key->getUnsignedLongValue(CKA_KEY_TYPE, CKK_VENDOR_DEFINED) != CKK_DH)
 			return CKR_KEY_TYPE_INCONSISTENT;
 
+		DEBUG_MSG("Deriving DH secret");
 		return this->deriveDH(hSession, pMechanism, hBaseKey, pTemplate, ulCount, phKey, keyType, isOnToken, isPrivate);
 	}
 
@@ -7667,7 +7688,7 @@ CK_RV SoftHSM::C_DeriveKey
 		if (pMechanism->mechanism == CKM_AES_CBC_ENCRYPT_DATA &&
 		    baseKeyType != CKK_AES)
 			return CKR_KEY_TYPE_INCONSISTENT;
-
+		DEBUG_MSG("Going to derive symmetric");
 		return this->deriveSymmetric(hSession, pMechanism, hBaseKey, pTemplate, ulCount, phKey, keyType, isOnToken, isPrivate);
 	}
 
@@ -10762,7 +10783,7 @@ CK_RV SoftHSM::deriveDH
 
 			if (byteLen > secretValue.size())
 			{
-				INFO_MSG("The derived secret is too short");
+				WARNING_MSG("The derived secret is too short, got %lu bytes, expected at least %lu bytes", secretValue.size(), byteLen);
 				bOK = false;
 			}
 			else
@@ -11115,7 +11136,7 @@ CK_RV SoftHSM::deriveECDH
 
 			if (byteLen > secretValue.size())
 			{
-				INFO_MSG("The derived secret is too short");
+				WARNING_MSG("The derived secret is too short, got %lu bytes, expected at least %lu bytes", secretValue.size(), byteLen);
 				bOK = false;
 			}
 			else
@@ -11469,7 +11490,7 @@ CK_RV SoftHSM::deriveEDDSA
 
 			if (byteLen > secretValue.size())
 			{
-				INFO_MSG("The derived secret is too short");
+				WARNING_MSG("The derived secret is too short, got %lu bytes, expected at least %lu bytes", secretValue.size(), byteLen);
 				bOK = false;
 			}
 			else
@@ -11575,7 +11596,7 @@ CK_RV SoftHSM::deriveSymmetric
 
 	if (pMechanism->pParameter == NULL_PTR && !isSHADerivation(pMechanism))
 	{
-		DEBUG_MSG("pParameter must be supplied");
+		WARNING_MSG("pParameter must be supplied");
 		return CKR_MECHANISM_PARAM_INVALID;
 	}
 
@@ -11589,12 +11610,12 @@ CK_RV SoftHSM::deriveSymmetric
 		CK_ULONG ulLen = CK_KEY_DERIVATION_STRING_DATA_PTR(pMechanism->pParameter)->ulLen;
 		if (ulLen == 0 || pData == NULL_PTR)
 		{
-			DEBUG_MSG("There must be data in the parameter");
+			WARNING_MSG("There must be data in the parameter");
 			return CKR_MECHANISM_PARAM_INVALID;
 		}
 		if (ulLen % 8 != 0)
 		{
-			DEBUG_MSG("The data must be a multiple of 8 bytes long");
+			WARNING_MSG("The data must be a multiple of 8 bytes long");
 			return CKR_MECHANISM_PARAM_INVALID;
 		}
 		data.resize(ulLen);
@@ -11610,12 +11631,12 @@ CK_RV SoftHSM::deriveSymmetric
 		CK_ULONG length = CK_DES_CBC_ENCRYPT_DATA_PARAMS_PTR(pMechanism->pParameter)->length;
 		if (length == 0 || pData == NULL_PTR)
 		{
-			DEBUG_MSG("There must be data in the parameter");
+			WARNING_MSG("There must be data in the parameter");
 			return CKR_MECHANISM_PARAM_INVALID;
 		}
 		if (length % 8 != 0)
 		{
-			DEBUG_MSG("The data must be a multiple of 8 bytes long");
+			WARNING_MSG("The data must be a multiple of 8 bytes long");
 			return CKR_MECHANISM_PARAM_INVALID;
 		}
 		data.resize(length);
@@ -11630,12 +11651,12 @@ CK_RV SoftHSM::deriveSymmetric
 		CK_ULONG ulLen = CK_KEY_DERIVATION_STRING_DATA_PTR(pMechanism->pParameter)->ulLen;
 		if (ulLen == 0 || pData == NULL_PTR)
 		{
-			DEBUG_MSG("There must be data in the parameter");
+			WARNING_MSG("There must be data in the parameter");
 			return CKR_MECHANISM_PARAM_INVALID;
 		}
 		if (ulLen % 16 != 0)
 		{
-			DEBUG_MSG("The data must be a multiple of 16 bytes long");
+			WARNING_MSG("The data must be a multiple of 16 bytes long");
 			return CKR_MECHANISM_PARAM_INVALID;
 		}
 		data.resize(ulLen);
@@ -11650,12 +11671,12 @@ CK_RV SoftHSM::deriveSymmetric
 		CK_ULONG length = CK_AES_CBC_ENCRYPT_DATA_PARAMS_PTR(pMechanism->pParameter)->length;
 		if (length == 0 || pData == NULL_PTR)
 		{
-			DEBUG_MSG("There must be data in the parameter");
+			WARNING_MSG("There must be data in the parameter");
 			return CKR_MECHANISM_PARAM_INVALID;
 		}
 		if (length % 16 != 0)
 		{
-			DEBUG_MSG("The data must be a multiple of 16 bytes long");
+			WARNING_MSG("The data must be a multiple of 16 bytes long");
 			return CKR_MECHANISM_PARAM_INVALID;
 		}
 		data.resize(length);
@@ -11672,7 +11693,7 @@ CK_RV SoftHSM::deriveSymmetric
 		CK_ULONG length = CK_KEY_DERIVATION_STRING_DATA_PTR(pMechanism->pParameter)->ulLen;
 		if (length == 0 || pData == NULL_PTR)
 		{
-			DEBUG_MSG("There must be data in the parameter");
+			WARNING_MSG("There must be data in the parameter");
 			return CKR_MECHANISM_PARAM_INVALID;
 		}
 		data.resize(length);
@@ -11951,6 +11972,7 @@ CK_RV SoftHSM::deriveSymmetric
 				secretValue += hash;
 			}
         } else {
+        	WARNING_MSG("Unknown mechanism for derivation.")
         	return CKR_MECHANISM_INVALID;
         }
 
@@ -11959,6 +11981,7 @@ CK_RV SoftHSM::deriveSymmetric
             byteLen = secretValue.size();
             CK_RV rv = checkKeyLength(keyType, byteLen);
             if (rv != CKR_OK) {
+            	WARNING_MSG("Key length check failed %lu bytes, key type %lu", byteLen, keyType);
             	return rv;
             }
         }
@@ -12129,7 +12152,7 @@ CK_RV SoftHSM::deriveSymmetric
 
 			if (byteLen > secretValue.size())
 			{
-				INFO_MSG("The derived secret is too short");
+				WARNING_MSG("The derived secret is too short, got %lu bytes, expected at least %lu bytes", secretValue.size(), byteLen);
 				bOK = false;
 			}
 			else
@@ -13186,8 +13209,10 @@ bool SoftHSM::isMechanismPermitted(OSObject* key, CK_MECHANISM_PTR pMechanism)
 	std::list<CK_MECHANISM_TYPE> mechs = supportedMechanisms;
 	/* First check if the algorithm is enabled in the global configuration */
 	auto it = std::find(mechs.begin(), mechs.end(), pMechanism->mechanism);
-	if (it == mechs.end())
+	if (it == mechs.end()) {
+		WARNING_MSG("Mechanism not enabled in global config");
 		return false;
+	}
 
 	OSAttribute attribute = key->getAttribute(CKA_ALLOWED_MECHANISMS);
 	std::set<CK_MECHANISM_TYPE> allowed = attribute.getMechanismTypeSetValue();
@@ -13196,7 +13221,12 @@ bool SoftHSM::isMechanismPermitted(OSObject* key, CK_MECHANISM_PTR pMechanism)
 		return true;
 	}
 
-	return allowed.find(pMechanism->mechanism) != allowed.end();
+	bool isAllowedByKey = allowed.find(pMechanism->mechanism) != allowed.end();
+
+	if (!isAllowedByKey) {
+		WARNING_MSG("Mechanism is disabled by CKA_ALLOWED_MECHANISMS")
+	}
+	return isAllowedByKey;
 }
 
 bool SoftHSM::detectFork(void) {

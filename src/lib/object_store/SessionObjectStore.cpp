@@ -54,24 +54,32 @@ SessionObjectStore::SessionObjectStore()
 // Destructor
 SessionObjectStore::~SessionObjectStore()
 {
+
+	DEBUG_MSG("SessionObjectStore destroy...");
+
 	// Clean up
+	DEBUG_MSG("Objects clear...");
 	objects.clear();
 	std::set<SessionObject*> cleanUp = allObjects;
-	allObjects.clear();
-
 	for (std::set<SessionObject*>::iterator i = cleanUp.begin(); i != cleanUp.end(); i++)
 	{
 		if ((*i) == NULL) continue;
 
-		SessionObject* that = *i;
-		delete that;
+		DEBUG_MSG("Deleting object 0x%016X", (*i));
+		delete *i;
 	}
+	DEBUG_MSG("All object clear...");
+	allObjects.clear();
+	DEBUG_MSG("Mutex recycle...");
 
 	MutexFactory::i()->recycleMutex(storeMutex);
+	DEBUG_MSG("SessionObjectStore destroyed.");
 }
 
 int SessionObjectStore::getObjectCount()
 {
+	MutexLocker lock(storeMutex);
+
     return objects.size();
 }
 
@@ -121,7 +129,7 @@ SessionObject* SessionObjectStore::createObject(CK_SLOT_ID slotID, CK_SESSION_HA
 	objects.insert(newObject);
 	allObjects.insert(newObject);
 
-	DEBUG_MSG("(0x%08X) Created new object (0x%08X)", this, newObject);
+	DEBUG_MSG("(0x%016X) Created new object (0x%016X)", this, newObject);
 
 	return newObject;
 }
@@ -133,7 +141,7 @@ bool SessionObjectStore::deleteObject(SessionObject* object)
 
 	if (objects.find(object) == objects.end())
 	{
-		ERROR_MSG("Cannot delete non-existent object 0x%08X", object);
+		ERROR_MSG("Cannot delete non-existent object 0x%016X", object);
 
 		return false;
 	}
@@ -207,12 +215,18 @@ void SessionObjectStore::clearStore()
 {
 	MutexLocker lock(storeMutex);
 
+	DEBUG_MSG("Clearing store");
+
 	objects.clear();
 	std::set<SessionObject*> clearObjects = allObjects;
-	allObjects.clear();
 
 	for (std::set<SessionObject*>::iterator i = clearObjects.begin(); i != clearObjects.end(); i++)
 	{
+		DEBUG_MSG("Deleting object 0x%016X", *i);
 		delete *i;
 	}
+
+	allObjects.clear();
+
+	DEBUG_MSG("Store cleared");
 }

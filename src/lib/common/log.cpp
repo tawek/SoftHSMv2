@@ -75,18 +75,10 @@ void softHSMLog(const int loglevel, const char* functionName, const char* fileNa
 
 	std::stringstream prepend;
 
-#ifdef SOFTHSM_LOG_FILE_AND_LINE
 	prepend << fileName << "(" << lineNo << ")";
-#ifndef SOFTHSM_LOG_FUNCTION_NAME
-	(void) functionName;
-	prepend << ":";
-#endif // !SOFTHSM_LOG_FUNCTION_NAME
 	prepend << " ";
-#endif // SOFTHSM_LOG_FILE_AND_LINE
 
-#ifdef SOFTHSM_LOG_FUNCTION_NAME
 	prepend << functionName << ": ";
-#endif // SOFTHSM_LOG_FUNCTION_NAME
 
 	// Print the format to a log message
 	std::vector<char> logMessage;
@@ -101,9 +93,7 @@ void softHSMLog(const int loglevel, const char* functionName, const char* fileNa
 	// And log it
 	syslog(loglevel, "%s%s", prepend.str().c_str(), &logMessage[0]);
 
-#ifdef DEBUG_LOG_STDERR
 	fprintf(stderr, "%s%s\n", prepend.str().c_str(), &logMessage[0]);
 	fflush(stderr);
-#endif // DEBUG_LOG_STDERR
 }
 

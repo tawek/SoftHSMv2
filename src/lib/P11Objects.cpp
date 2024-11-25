@@ -153,6 +153,7 @@ CK_RV P11Object::loadTemplate(Token *token, CK_ATTRIBUTE_PTR pTemplate, CK_ULONG
 			pTemplate[i].ulValueLen = CK_UNAVAILABLE_INFORMATION;
 			// If case 2 applies to any of the requested attributes, then the call should
 			// return the value CKR_ATTRIBUTE_TYPE_INVALID.
+			WARNING_MSG("Attribute %lu is invalid", (unsigned long)pTemplate[i].type);
 			invalid = true;
 			continue;
 		}
@@ -162,12 +163,15 @@ CK_RV P11Object::loadTemplate(Token *token, CK_ATTRIBUTE_PTR pTemplate, CK_ULONG
 		if (retrieve_rv == CKR_ATTRIBUTE_SENSITIVE) {
 			// If case 1 applies to any of the requested attributes, then the call should
 			// return the value CKR_ATTRIBUTE_SENSITIVE.
+			WARNING_MSG("Attribute %lu is sensitive", (unsigned long)pTemplate[i].type);
 			sensitive = true;
 		} else if (retrieve_rv == CKR_BUFFER_TOO_SMALL) {
 			// If case 5 applies to any of the requested attributes, then the call should
 			// return the value CKR_BUFFER_TOO_SMALL.
+			WARNING_MSG("Buffer too small for attribute %lu", (unsigned long)pTemplate[i].type);
 			buffer_too_small = true;
 		} else if (retrieve_rv != CKR_OK) {
+		    WARNING_MSG("Could not retrieve attribute %lu", (unsigned long)pTemplate[i].type);
 		    return CKR_GENERAL_ERROR;
 		}
 
@@ -226,6 +230,7 @@ CK_RV P11Object::saveTemplate(Token *token, bool isPrivate, CK_ATTRIBUTE_PTR pTe
 
 		if (attr == NULL)
 		{
+			WARNING_MSG("Attribute %lx is invalid", (unsigned long)pTemplate[i].type);
 			osobject->abortTransaction();
 			return CKR_ATTRIBUTE_TYPE_INVALID;
 		}
@@ -234,6 +239,7 @@ CK_RV P11Object::saveTemplate(Token *token, bool isPrivate, CK_ATTRIBUTE_PTR pTe
 		CK_RV rv = attr->update(token,isPrivate, pTemplate[i].pValue, pTemplate[i].ulValueLen, op);
 		if (rv != CKR_OK)
 		{
+			WARNING_MSG("Could not update attribute %lx", (unsigned long)pTemplate[i].type);
 			osobject->abortTransaction();
 			return rv;
 		}

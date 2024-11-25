@@ -48,9 +48,12 @@ SessionObject::SessionObject(SessionObjectStore* inParent, CK_SLOT_ID inSlotID, 
 // Destructor
 SessionObject::~SessionObject()
 {
+	DEBUG_MSG("Discarding session object 0x%016X", this)
 	discardAttributes();
 
+	DEBUG_MSG("Recycling mutex for session object 0x%016X", this)
 	MutexFactory::i()->recycleMutex(objectMutex);
+	DEBUG_MSG("Destroyed session object 0x%016X", this)
 }
 
 // Check if the specified attribute exists
@@ -69,7 +72,7 @@ OSAttribute SessionObject::getAttribute(CK_ATTRIBUTE_TYPE type)
 	OSAttribute* attr = attributes[type];
 	if (attr == NULL)
 	{
-		ERROR_MSG("The attribute does not exist: 0x%08X", type);
+		ERROR_MSG("The attribute does not exist: 0x%016X", type);
 		return OSAttribute((unsigned long)0);
 	}
 
@@ -83,7 +86,7 @@ bool SessionObject::getBooleanValue(CK_ATTRIBUTE_TYPE type, bool val)
 	OSAttribute* attr = attributes[type];
 	if (attr == NULL)
 	{
-		ERROR_MSG("The attribute does not exist: 0x%08X", type);
+		ERROR_MSG("The attribute does not exist: 0x%016X", type);
 		return val;
 	}
 
@@ -93,7 +96,7 @@ bool SessionObject::getBooleanValue(CK_ATTRIBUTE_TYPE type, bool val)
 	}
 	else
 	{
-		ERROR_MSG("The attribute is not a boolean: 0x%08X", type);
+		ERROR_MSG("The attribute is not a boolean: 0x%016X", type);
 		return val;
 	}
 }
@@ -105,7 +108,7 @@ unsigned long SessionObject::getUnsignedLongValue(CK_ATTRIBUTE_TYPE type, unsign
 	OSAttribute* attr = attributes[type];
 	if (attr == NULL)
 	{
-		ERROR_MSG("The attribute does not exist: 0x%08X", type);
+		ERROR_MSG("The attribute does not exist: 0x%016X", type);
 		return val;
 	}
 
@@ -115,7 +118,7 @@ unsigned long SessionObject::getUnsignedLongValue(CK_ATTRIBUTE_TYPE type, unsign
 	}
 	else
 	{
-		ERROR_MSG("The attribute is not an unsigned long: 0x%08X", type);
+		ERROR_MSG("The attribute is not an unsigned long: 0x%016X", type);
 		return val;
 	}
 }
@@ -129,7 +132,7 @@ ByteString SessionObject::getByteStringValue(CK_ATTRIBUTE_TYPE type)
 	OSAttribute* attr = attributes[type];
 	if (attr == NULL)
 	{
-		ERROR_MSG("The attribute does not exist: 0x%08X", type);
+		ERROR_MSG("The attribute does not exist: 0x%016X", type);
 		return val;
 	}
 
@@ -139,7 +142,7 @@ ByteString SessionObject::getByteStringValue(CK_ATTRIBUTE_TYPE type)
 	}
 	else
 	{
-		ERROR_MSG("The attribute is not a byte string: 0x%08X", type);
+		ERROR_MSG("The attribute is not a byte string: 0x%016X", type);
 		return val;
 	}
 }
@@ -174,7 +177,7 @@ bool SessionObject::setAttribute(CK_ATTRIBUTE_TYPE type, const OSAttribute& attr
 
 	if (!valid)
 	{
-		DEBUG_MSG("Cannot update invalid session object 0x%08X", this);
+		DEBUG_MSG("Cannot update invalid session object 0x%016X", this);
 
 		return false;
 	}
@@ -198,14 +201,14 @@ bool SessionObject::deleteAttribute(CK_ATTRIBUTE_TYPE type)
 
 	if (!valid)
 	{
-		DEBUG_MSG("Cannot update invalid session object 0x%08X", this);
+		DEBUG_MSG("Cannot update invalid session object 0x%016X", this);
 
 		return false;
 	}
 
 	if (attributes[type] == NULL)
 	{
-		DEBUG_MSG("Cannot delete attribute that doesn't exist in object 0x%08X", this);
+		DEBUG_MSG("Cannot delete attribute that doesn't exist in object 0x%016X", this);
 
 		return false;
 	}
@@ -280,11 +283,12 @@ bool SessionObject::removeOnTokenLogout(CK_SLOT_ID inSlotID)
 // Discard the object's attributes
 void SessionObject::discardAttributes()
 {
+	DEBUG_MSG("Locking mutex for session object 0x%016X", this);
 	MutexLocker lock(objectMutex);
 
 	std::map<CK_ATTRIBUTE_TYPE, OSAttribute*> cleanUp = attributes;
-	attributes.clear();
 
+	DEBUG_MSG("Discarding attributes for session object 0x%016X, %i attributes", this, attributes.size());
 	for (std::map<CK_ATTRIBUTE_TYPE, OSAttribute*>::iterator i = cleanUp.begin(); i != cleanUp.end(); i++)
 	{
 		if (i->second == NULL)
@@ -292,9 +296,16 @@ void SessionObject::discardAttributes()
 			continue;
 		}
 
+		DEBUG_MSG("Discarding attribute 0x%016X -> 0x%016X", i->first, i->second);
+
 		delete i->second;
 		i->second = NULL;
 	}
+
+	DEBUG_MSG("Discarded %i attributes", attributes.size());
+	attributes.clear();
+
+	DEBUG_MSG("Discarded.");
 }
 
 // These functions are just stubs for session objects
