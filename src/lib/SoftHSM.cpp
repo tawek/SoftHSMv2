@@ -6299,6 +6299,7 @@ CK_RV SoftHSM::WrapKeySym
 			break;
 
 		case CKM_AES_CBC:
+			blocksize = 16;
 			algo = SymAlgo::AES;
 			chainMode = SymMode::CBC;
 			break;
@@ -6322,6 +6323,7 @@ CK_RV SoftHSM::WrapKeySym
 			break;
 
 		case CKM_DES3_CBC:
+			blocksize = 8;
 			algo = SymAlgo::DES3;
 			chainMode = SymMode::CBC;
 			bb = 7;
@@ -6883,6 +6885,7 @@ CK_RV SoftHSM::UnwrapKeySym
 			break;
 
 		case CKM_AES_CBC:
+			blocksize = 16;
 			algo = SymAlgo::AES;
 			chainMode = SymMode::CBC;
 			break;
@@ -6906,6 +6909,7 @@ CK_RV SoftHSM::UnwrapKeySym
 			break;
 
 		case CKM_DES3_CBC:
+			blocksize = 8;
 			algo = SymAlgo::DES3;
 			chainMode = SymMode::CBC;
 			bb = 7;
