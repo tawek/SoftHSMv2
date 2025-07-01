@@ -335,7 +335,7 @@ static CK_RV checkKeyLength(CK_KEY_TYPE keyType, size_t byteLen)
 			}
 			break;
 		default:
-			return CKR_ATTRIBUTE_VALUE_INVALID;
+			break;
 	}
 	return CKR_OK;
 }
